@@ -26,7 +26,7 @@ from bindsnet.analysis.plotting import (
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--n_neurons", type=int, default=100)
-parser.add_argument("--n_train", type=int, default=5000)
+parser.add_argument("--n_train", type=int, default=50)
 parser.add_argument("--n_test", type=int, default=10000)
 parser.add_argument("--n_clamp", type=int, default=1)
 parser.add_argument("--exc", type=float, default=22.5)
@@ -92,6 +92,11 @@ network.add_monitor(exc_voltage_monitor, name="exc_voltage")
 network.add_monitor(inh_voltage_monitor, name="inh_voltage")
 
 # Load MNIST data.
+
+# dataset = Route_data(csv_file='./route/TTC_train.csv',
+#                                     root_dir ='./route', time = time, dt = dt)
+# dataset_t = Route_data(csv_file='./route/TTC_test2.csv',
+#                                     root_dir='./route', time = time, dt = dt)
 dataset = MNIST(
     PoissonEncoder(time=time, dt=dt),
     None,
@@ -103,6 +108,13 @@ dataset = MNIST(
 )
 
 # Create a dataloader to iterate and batch data
+
+# dataloader = torch.utils.data.DataLoader(
+# #     dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
+# # )
+# # dataloader_t = torch.utils.data.DataLoader(
+# #     dataset_t, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
+# # )
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
 )

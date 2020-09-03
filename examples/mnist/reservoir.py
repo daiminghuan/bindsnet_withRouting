@@ -1,21 +1,15 @@
-import os
 import numpy as np
 import torch
 import torch.nn as nn
 import argparse
 import matplotlib.pyplot as plt
-
-from torchvision import transforms
 from tqdm import tqdm
 
+from data.route import Route_data
 from bindsnet.analysis.plotting import (
-    plot_input,
     plot_spikes,
     plot_voltages,
-    plot_weights,
 )
-from bindsnet.datasets import MNIST
-from bindsnet.encoding import PoissonEncoder
 from bindsnet.network import Network
 from bindsnet.network.nodes import Input
 
@@ -28,9 +22,10 @@ from bindsnet.utils import get_square_weights
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
-parser.add_argument("--n_neurons", type=int, default=500)
-parser.add_argument("--n_epochs", type=int, default=100)
-parser.add_argument("--examples", type=int, default=500)
+parser.add_argument("--n_neurons", type=int, default=200)
+parser.add_argument("--n_epochs", type=int, default=2)
+parser.add_argument("--examples", type=int, default=218)
+parser.add_argument("--examples_test", type=int, default=201)
 parser.add_argument("--n_workers", type=int, default=-1)
 parser.add_argument("--time", type=int, default=250)
 parser.add_argument("--dt", type=int, default=1.0)
@@ -40,7 +35,7 @@ parser.add_argument("--update_interval", type=int, default=250)
 parser.add_argument("--plot", dest="plot", action="store_true")
 parser.add_argument("--gpu", dest="gpu", action="store_true")
 parser.add_argument("--device_id", type=int, default=0)
-parser.set_defaults(plot=True, gpu=True, train=True)
+parser.set_defaults(plot=False, gpu=True, train=True)
 
 args = parser.parse_args()
 
@@ -48,6 +43,7 @@ seed = args.seed
 n_neurons = args.n_neurons
 n_epochs = args.n_epochs
 examples = args.examples
+examples_test = args.examples_test
 n_workers = args.n_workers
 time = args.time
 dt = args.dt
@@ -70,9 +66,9 @@ if gpu and torch.cuda.is_available():
 else:
     torch.manual_seed(seed)
 
-
+#  create network
 network = Network(dt=dt)
-inpt = Input(784, shape=(1, 28, 28))
+inpt = Input(10, shape=(1, 10, 1))
 network.add_layer(inpt, name="I")
 output = LIFNodes(n_neurons, thresh=-52 + np.random.randn(n_neurons).astype(float))
 network.add_layer(output, name="O")
@@ -94,18 +90,12 @@ network.add_monitor(voltages["O"], name="O_voltages")
 if gpu:
     network.to("cuda")
 
-# Get MNIST training images and labels.
-# Load MNIST data.
-dataset = MNIST(
-    PoissonEncoder(time=time, dt=dt),
-    None,
-    root=os.path.join("..", "..", "data", "MNIST"),
-    download=True,
-    transform=transforms.Compose(
-        [transforms.ToTensor(), transforms.Lambda(lambda x: x * intensity)]
-    ),
-)
+#get  training_dataset& test_dataset
 
+dataset = Route_data(csv_file='./route/TTC_train.csv',
+                                    root_dir ='./route', time = time, dt = dt)
+dataset_t = Route_data(csv_file='./route/TTC_test2.csv',
+                                    root_dir='./route', time = time, dt = dt)
 inpt_axes = None
 inpt_ims = None
 spike_axes = None
@@ -119,15 +109,16 @@ voltage_axes = None
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
 )
+dataloader_t = torch.utils.data.DataLoader(
+    dataset_t, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
+)
 
 # Run training data on reservoir computer and store (spikes per neuron, label) per example.
 n_iters = examples
 training_pairs = []
 pbar = tqdm(enumerate(dataloader))
 for (i, dataPoint) in pbar:
-    if i > n_iters:
-        break
-    datum = dataPoint["encoded_image"].view(time, 1, 1, 28, 28).to(device_id)
+    datum = dataPoint["train_data"].view(time, 1, 1, 10, 1).to(device_id)
     label = dataPoint["label"]
     pbar.set_description_str("Train progress: (%d / %d)" % (i, n_iters))
 
@@ -136,13 +127,6 @@ for (i, dataPoint) in pbar:
 
     if plot:
 
-        inpt_axes, inpt_ims = plot_input(
-            dataPoint["image"].view(28, 28),
-            datum.view(time, 784).sum(0).view(28, 28),
-            label=label,
-            axes=inpt_axes,
-            ims=inpt_ims,
-        )
         spike_ims, spike_axes = plot_spikes(
             {layer: spikes[layer].get("s").view(-1, time) for layer in spikes},
             axes=spike_axes,
@@ -153,10 +137,6 @@ for (i, dataPoint) in pbar:
             ims=voltage_ims,
             axes=voltage_axes,
         )
-        weights_im = plot_weights(
-            get_square_weights(C1.w, 23, 28), im=weights_im, wmin=-2, wmax=2
-        )
-        weights_im2 = plot_weights(C2.w, im=weights_im2, wmin=-2, wmax=2)
 
         plt.pause(1e-8)
     network.reset_state_variables()
@@ -178,8 +158,10 @@ class NN(nn.Module):
 
 
 # Create and train logistic regression model on reservoir outputs.
-model = NN(n_neurons, 10).to(device_id)
-criterion = torch.nn.MSELoss(reduction="sum")
+model = NN(n_neurons, 4).to(device_id)
+# criterion = torch.nn.MSELoss(reduction="sum")
+criterion = torch.nn.MSELoss()
+
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
 
 # Training the Model
@@ -187,11 +169,12 @@ print("\n Training the read out")
 pbar = tqdm(enumerate(range(n_epochs)))
 for epoch, _ in pbar:
     avg_loss = 0
-    for i, (s, l) in enumerate(training_pairs):
+    for i, (s, l) in enumerate(training_pairs):#s 为存储的脉冲数量， l为存储的label
         # Forward + Backward + Optimize
         optimizer.zero_grad()
         outputs = model(s)
-        label = torch.zeros(1, 1, 10).float().to(device_id)
+        # label = torch.zeros(1, 1, 10).float().to(device_id)
+        label = torch.zeros(1, 1, 4).float().to(device_id)
         label[0, 0, l] = 1.0
         loss = criterion(outputs.view(1, 1, -1), label)
         avg_loss += loss.data
@@ -202,14 +185,14 @@ for epoch, _ in pbar:
         "Epoch: %d/%d, Loss: %.4f"
         % (epoch + 1, n_epochs, avg_loss / len(training_pairs))
     )
+n_iters = examples_test
 
-n_iters = examples
 test_pairs = []
-pbar = tqdm(enumerate(dataloader))
+pbar = tqdm(enumerate(dataloader_t))
 for (i, dataPoint) in pbar:
-    if i > n_iters:
-        break
-    datum = dataPoint["encoded_image"].view(time, 1, 1, 28, 28).to(device_id)
+    # if i > n_iters:
+    #     #     break
+    datum = dataPoint["train_data"].view(time, 1, 1, 10, 1).to(device_id)
     label = dataPoint["label"]
     pbar.set_description_str("Testing progress: (%d / %d)" % (i, n_iters))
 
@@ -217,13 +200,13 @@ for (i, dataPoint) in pbar:
     test_pairs.append([spikes["O"].get("s").sum(0), label])
 
     if plot:
-        inpt_axes, inpt_ims = plot_input(
-            dataPoint["image"].view(28, 28),
-            datum.view(time, 784).sum(0).view(28, 28),
-            label=label,
-            axes=inpt_axes,
-            ims=inpt_ims,
-        )
+        # inpt_axes, inpt_ims = plot_input(
+        #     dataPoint["train_data"].view(10,1),
+        #     datum.view(time, 10).sum(0).view(10, 1),
+        #     label=label,
+        #     axes=inpt_axes,
+        #     ims=inpt_ims,
+        # )
         spike_ims, spike_axes = plot_spikes(
             {layer: spikes[layer].get("s").view(-1, 250) for layer in spikes},
             axes=spike_axes,
@@ -234,10 +217,10 @@ for (i, dataPoint) in pbar:
             ims=voltage_ims,
             axes=voltage_axes,
         )
-        weights_im = plot_weights(
-            get_square_weights(C1.w, 23, 28), im=weights_im, wmin=-2, wmax=2
-        )
-        weights_im2 = plot_weights(C2.w, im=weights_im2, wmin=-2, wmax=2)
+        # weights_im = plot_weights(
+        #     get_square_weights(C1.w, 23, 28), im=weights_im, wmin=-2, wmax=2
+        # )
+        # weights_im2 = plot_weights(C2.w, im=weights_im2, wmin=-2, wmax=2)
 
         plt.pause(1e-8)
     network.reset_state_variables()
@@ -248,9 +231,12 @@ for s, label in test_pairs:
     outputs = model(s)
     _, predicted = torch.max(outputs.data.unsqueeze(0), 1)
     total += 1
+    citydict = {0 :"Houston",1:"Madrid",2:"Goldstone",3:"Canberra"}
+    if  predicted == label.long().to(device_id):
+        print("0:Houston,1:Madrid,2: Goldstone, 3:Canberra and the prediction is city: %s" % citydict[predicted])
     correct += int(predicted == label.long().to(device_id))
 
 print(
-    "\n Accuracy of the model on %d test images: %.2f %%"
-    % (n_iters, 100 * correct / total)
+    "\n Accuracy of the model on %d test  %.2f %%"
+    % (total, 100 * correct / total)
 )
