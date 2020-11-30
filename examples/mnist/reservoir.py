@@ -7,8 +7,10 @@ from tqdm import tqdm
 
 from data.route import Route_data
 from bindsnet.analysis.plotting import (
+    plot_input,
     plot_spikes,
     plot_voltages,
+    plot_weights,
 )
 from bindsnet.network import Network
 from bindsnet.network.nodes import Input
@@ -23,7 +25,7 @@ from bindsnet.utils import get_square_weights
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--n_neurons", type=int, default=200)
-parser.add_argument("--n_epochs", type=int, default=2)
+parser.add_argument("--n_epochs", type=int, default=2000)
 parser.add_argument("--examples", type=int, default=218)
 parser.add_argument("--examples_test", type=int, default=201)
 parser.add_argument("--n_workers", type=int, default=-1)
@@ -128,15 +130,20 @@ for (i, dataPoint) in pbar:
     if plot:
 
         spike_ims, spike_axes = plot_spikes(
-            {layer: spikes[layer].get("s").view(-1, time) for layer in spikes},
+            {layer: spikes[layer].get("s").view(time,-1 ) for layer in spikes},
             axes=spike_axes,
             ims=spike_ims,
         )
         voltage_ims, voltage_axes = plot_voltages(
-            {layer: voltages[layer].get("v").view(-1, time) for layer in voltages},
+            {layer: voltages[layer].get("v").view(time, -1) for layer in voltages},
             ims=voltage_ims,
             axes=voltage_axes,
         )
+        weights_im = plot_weights(
+            get_square_weights(C1.w, 23, 28), im=weights_im, wmin=-2, wmax=2
+        )
+        weights_im2 = plot_weights(C2.w, im=weights_im2, wmin=-2, wmax=2)
+
 
         plt.pause(1e-8)
     network.reset_state_variables()
@@ -169,7 +176,8 @@ print("\n Training the read out")
 pbar = tqdm(enumerate(range(n_epochs)))
 for epoch, _ in pbar:
     avg_loss = 0
-    for i, (s, l) in enumerate(training_pairs):#s 为存储的脉冲数量， l为存储的label
+    for i, (s, l) in enumerate(training_pairs):
+        #s 为存储的脉冲数量， l为存储的label
         # Forward + Backward + Optimize
         optimizer.zero_grad()
         outputs = model(s)
@@ -233,7 +241,7 @@ for s, label in test_pairs:
     total += 1
     citydict = {0 :"Houston",1:"Madrid",2:"Goldstone",3:"Canberra"}
     if  predicted == label.long().to(device_id):
-        print("0:Houston,1:Madrid,2: Goldstone, 3:Canberra and the prediction is city: %s" % citydict[predicted])
+        print("prediction is city: %s" % citydict[predicted.item()])
     correct += int(predicted == label.long().to(device_id))
 
 print(

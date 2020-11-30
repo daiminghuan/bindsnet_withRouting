@@ -6,6 +6,12 @@ import matplotlib.pyplot as plt
 
 from torchvision import transforms
 from tqdm import tqdm
+#带宽和时延
+#场景  链路贷款
+#换场景和长时延 深空
+
+#新算法
+#非确定性CGR 队列
 
 
 from bindsnet.datasets import MNIST
@@ -73,7 +79,6 @@ n_sqrt = int(np.ceil(np.sqrt(n_neurons)))
 start_intensity = intensity
 per_class = int(n_neurons / 10)
 
-# Build Diehl & Cook 2015 network.
 network = DiehlAndCook2015(
     n_inpt=784,
     n_neurons=n_neurons,
@@ -91,7 +96,6 @@ inh_voltage_monitor = Monitor(network.layers["Ai"], ["v"], time=time)
 network.add_monitor(exc_voltage_monitor, name="exc_voltage")
 network.add_monitor(inh_voltage_monitor, name="inh_voltage")
 
-# Load MNIST data.
 
 # dataset = Route_data(csv_file='./route/TTC_train.csv',
 #                                     root_dir ='./route', time = time, dt = dt)
