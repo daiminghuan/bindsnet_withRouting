@@ -98,8 +98,8 @@ dataset = Route_data(csv_file='./route/TTC_train4.csv',
                                     root_dir ='./route', time = time, dt = dt)
 # dataset_t = Route_data(csv_file='./route/TTC_test2.csv',
 #                                     root_dir='./route', time = time, dt = dt)
-dataset_t = Route_data(csv_file='./route/TTC_test4.csv',
-                                  root_dir='./route', time = time, dt = dt)
+# dataset_t = Route_data(csv_file='./route/TTC_test4.csv',
+#                                   root_dir='./route', time = time, dt = dt)
 inpt_axes = None
 inpt_ims = None
 spike_axes = None
@@ -113,9 +113,9 @@ voltage_axes = None
 dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
 )
-dataloader_t = torch.utils.data.DataLoader(
-    dataset_t, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
-)
+# dataloader_t = torch.utils.data.DataLoader(
+#     dataset_t, batch_size=1, shuffle=True, num_workers=0, pin_memory=gpu
+# )
 
 # Run training data on reservoir computer and store (spikes per neuron, label) per example.
 n_iters = examples
@@ -193,51 +193,52 @@ for epoch, _ in pbar:
         "Epoch: %d/%d, Loss: %.4f"
         % (epoch + 1, n_epochs, avg_loss / len(training_pairs))
     )
+torch.save(model.state_dict(), "8char.pth")
 n_iters = examples_test
 
-test_pairs = []
-pbar = tqdm(enumerate(dataloader_t))
-for (i, dataPoint) in pbar:
-    # if i > n_iters:
-    #     break
-    datum = dataPoint["train_data"].view(time, 1, 1, 8, 1).to(device_id)
-    label = dataPoint["label"]
-    pbar.set_description_str("Testing progress: (%d / %d)" % (i+1, n_iters))
-
-    network.run(inputs={"I": datum}, time=250, input_time_dim=1)
-    test_pairs.append([spikes["O"].get("s").sum(0), label, dataPoint['each_index']])
-
-    if plot:
-
-        spike_ims, spike_axes = plot_spikes(
-            {layer: spikes[layer].get("s").view(250,-1 ) for layer in spikes},
-            axes=spike_axes,
-            ims=spike_ims,
-        )
-        voltage_ims, voltage_axes = plot_voltages(
-            {layer: voltages[layer].get("v").view(250, -1) for layer in voltages},
-            ims=voltage_ims,
-            axes=voltage_axes,
-        )
-        weights_im2 = plot_weights(C2.w, im=weights_im2, wmin=-2, wmax=2)
-
-        plt.pause(1e-8)
-    network.reset_state_variables()
-
-# Test the Model
-correct, total = 0, 0
-for s, label, each_index in test_pairs:
-    outputs = model(s)
-    _, predicted = torch.max(outputs.data.unsqueeze(0), 1)
-    total += 1
-    citydict = {0 : "Houston", 1 : "Madrid", 2 : "Goldstone", 3 : "Canberra"}
-    if  predicted == label.long().to(device_id):
-        print("0:Houston, 1:Madrid, 2: Goldstone, 3:Canberra and the prediction is city: %s" % citydict[predicted.item()])
-    else:
-        print("number: %d is wrong, and predict %s as %s " % (each_index, citydict[label.long().to(device_id).item()], citydict[predicted.item()]))
-    correct += int(predicted == label.long().to(device_id))
-
-print(
-    "\n Accuracy of the model on %d test  %.2f %%"
-    % (total, 100 * correct / total)
-)
+# test_pairs = []
+# pbar = tqdm(enumerate(dataloader_t))
+# for (i, dataPoint) in pbar:
+#     # if i > n_iters:
+#     #     break
+#     datum = dataPoint["train_data"].view(time, 1, 1, 8, 1).to(device_id)
+#     label = dataPoint["label"]
+#     pbar.set_description_str("Testing progress: (%d / %d)" % (i+1, n_iters))
+#
+#     network.run(inputs={"I": datum}, time=250, input_time_dim=1)
+#     test_pairs.append([spikes["O"].get("s").sum(0), label, dataPoint['each_index']])
+#
+#     if plot:
+#
+#         spike_ims, spike_axes = plot_spikes(
+#             {layer: spikes[layer].get("s").view(250,-1 ) for layer in spikes},
+#             axes=spike_axes,
+#             ims=spike_ims,
+#         )
+#         voltage_ims, voltage_axes = plot_voltages(
+#             {layer: voltages[layer].get("v").view(250, -1) for layer in voltages},
+#             ims=voltage_ims,
+#             axes=voltage_axes,
+#         )
+#         weights_im2 = plot_weights(C2.w, im=weights_im2, wmin=-2, wmax=2)
+#
+#         plt.pause(1e-8)
+#     network.reset_state_variables()
+#
+# # Test the Model
+# correct, total = 0, 0
+# for s, label, each_index in test_pairs:
+#     outputs = model(s)
+#     _, predicted = torch.max(outputs.data.unsqueeze(0), 1)
+#     total += 1
+#     citydict = {0 : "Houston", 1 : "Madrid", 2 : "Goldstone", 3 : "Canberra"}
+#     if  predicted == label.long().to(device_id):
+#         print("0:Houston, 1:Madrid, 2: Goldstone, 3:Canberra and the prediction is city: %s" % citydict[predicted.item()])
+#     else:
+#         print("number: %d is wrong, and predict %s as %s " % (each_index, citydict[label.long().to(device_id).item()], citydict[predicted.item()]))
+#     correct += int(predicted == label.long().to(device_id))
+#
+# print(
+#     "\n Accuracy of the model on %d test  %.2f %%"
+#     % (total, 100 * correct / total)
+# )

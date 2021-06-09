@@ -34,10 +34,12 @@ class Route_data(Dataset):
 
         # img_name = os.path.join(self.root_dir,
         #                         self.data_frame.iloc[idx, 0])
-        train_data=  self.data_frame.iloc[idx, 1:11]
+        # train_data= self.data_frame.iloc[idx, 1:11]
+        train_data = self.data_frame.iloc[idx, 1:9]
         train_data = np.array([train_data])
         train_data= train_data.astype('float').reshape(-1, 1)
-        label = self.data_frame.iloc[idx, 11]
+        # label = self.data_frame.iloc[idx, 11]
+        label = self.data_frame.iloc[idx, 9]
         label = np.array([label])
         label = label.astype('float').reshape(-1, 1)
         sample = {'train_data': train_data, 'label': label}
